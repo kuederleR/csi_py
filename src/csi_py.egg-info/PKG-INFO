@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: csi_py
-Version: 0.0.1
+Version: 0.0.2
 Summary: A python package for ingesting CSI data from ESP 32 modules
 Author-email: Ryan Kuederle <ryan@rkuederle.com>
 License-Expression: MIT
@@ -11,4 +11,6 @@ Classifier: Operating System :: OS Independent
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: pyserial
 Dynamic: license-file
