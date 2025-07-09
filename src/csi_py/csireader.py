@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*-coding:utf-8-*-
 
-import sys
 import csv
 import json
 import numpy as np
@@ -30,7 +29,7 @@ class CSIData:
         self.meta = meta
 
 class CSIReader:
-    def __init__(self, port, data_callback=None, rate=None, detect_static_samples=10):
+    def __init__(self, port, data_callback=None, rate=None, detect_static_samples=10, dynamic_filter=True):
         self.port = port
         self.csi_data_complex = np.zeros([CSI_DATA_INDEX, CSI_DATA_COLUMNS], dtype=np.complex64)
         self.data_callback = data_callback if data_callback is not None else self.default_callback
@@ -40,6 +39,7 @@ class CSIReader:
         self._static_detection_done = False
         self._static_raw_history = []
         self._dynamic_indices = None
+        self._dynamic_filter = dynamic_filter
 
     def default_callback(self, data):
         pass
@@ -95,33 +95,49 @@ class CSIReader:
                 if csi_data_len != len(csi_raw_data):
                     continue
 
-                # --- Static index detection ---
-                if not self._static_detection_done:
-                    self._static_raw_history.append(list(csi_raw_data))
-                    if len(self._static_raw_history) >= self.detect_static_samples:
-                        arr = np.array(self._static_raw_history)
-                        # Find indices where all values are the same across samples
-                        static_mask = np.all(arr == arr[0], axis=0)
-                        self._dynamic_indices = np.where(~static_mask)[0]
-                        self._static_detection_done = True
-                        print(f"Detected {len(self._dynamic_indices)} dynamic indices out of {len(static_mask)} total.")
-                    continue  # Don't process until detection is done
+                if self._dynamic_filter:
+                    # --- Static index detection ---
+                    if not self._static_detection_done:
+                        self._static_raw_history.append(list(csi_raw_data))
+                        if len(self._static_raw_history) >= self.detect_static_samples:
+                            arr = np.array(self._static_raw_history)
+                            # Find indices where all values are the same across samples
+                            static_mask = np.all(arr == arr[0], axis=0)
+                            self._dynamic_indices = np.where(~static_mask)[0]
+                            self._static_detection_done = True
+                            print(f"Detected {len(self._dynamic_indices)} dynamic indices out of {len(static_mask)} total.")
+                        continue  # Don't process until detection is done
 
-                # Only use dynamic indices for processing
-                filtered_raw = [csi_raw_data[i] for i in self._dynamic_indices]
-                filtered_len = len(filtered_raw)
-                # Always keep buffer up to date
-                self.csi_data_complex[:-1] = self.csi_data_complex[1:]
-                for i in range(filtered_len // 2):
-                    self.csi_data_complex[-1][i] = complex(
-                        filtered_raw[i * 2 + 1], filtered_raw[i * 2]
-                    )
-                now = time.time()
-                if not self.rate or (now - last_process) >= interval:
-                    amplitude = np.abs(self.csi_data_complex[-1, :filtered_len // 2])
-                    phase = np.angle(self.csi_data_complex[-1, :filtered_len // 2])
-                    data = CSIData(amplitude, phase, filtered_raw, meta)
-                    self.data_callback(data)
-                    last_process = now
+                    # Only use dynamic indices for processing
+                    filtered_raw = [csi_raw_data[i] for i in self._dynamic_indices]
+                    filtered_len = len(filtered_raw)
+                    # Always keep buffer up to date
+                    self.csi_data_complex[:-1] = self.csi_data_complex[1:]
+                    for i in range(filtered_len // 2):
+                        self.csi_data_complex[-1][i] = complex(
+                            filtered_raw[i * 2 + 1], filtered_raw[i * 2]
+                        )
+                    now = time.time()
+                    if not self.rate or (now - last_process) >= interval:
+                        amplitude = np.abs(self.csi_data_complex[-1, :filtered_len // 2])
+                        phase = np.angle(self.csi_data_complex[-1, :filtered_len // 2])
+                        data = CSIData(amplitude, phase, filtered_raw, meta)
+                        self.data_callback(data)
+                        last_process = now
+                else:
+                    # No dynamic filtering, use all data
+                    raw_len = len(csi_raw_data)
+                    self.csi_data_complex[:-1] = self.csi_data_complex[1:]
+                    for i in range(raw_len // 2):
+                        self.csi_data_complex[-1][i] = complex(
+                            csi_raw_data[i * 2 + 1], csi_raw_data[i * 2]
+                        )
+                    now = time.time()
+                    if not self.rate or (now - last_process) >= interval:
+                        amplitude = np.abs(self.csi_data_complex[-1, :raw_len // 2])
+                        phase = np.angle(self.csi_data_complex[-1, :raw_len // 2])
+                        data = CSIData(amplitude, phase, csi_raw_data, meta)
+                        self.data_callback(data)
+                        last_process = now
         finally:
             ser.close()
