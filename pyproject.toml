@@ -1,16 +1,16 @@
 [build-system]
-requires = ["setuptools >= 77.0.3"]
+requires = ["setuptools >= 39.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "csi_py"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
   { name="Ryan Kuederle", email="ryan@rkuederle.com" },
 ]
 description = "A python package for ingesting CSI data from ESP 32 modules"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.6"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
